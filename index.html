@@ -1216,11 +1216,7 @@ function renderChart(data, chartType) {
     };
     const valueAxis = {
       ticks: {
-        color: colorSettings.axisTextColor,
-        font: { family: 'JetBrains Mono', size: 11 },
-        callback: function(value) {
-          return formatNum(value);
-        }
+        display: false,
       },
       grid: { display: false },
       border: { color: colorSettings.axisLineColor },
