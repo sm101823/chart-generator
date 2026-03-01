@@ -820,6 +820,8 @@ const COLORS = [
 ];
 
 const KNOWN_UNITS = ['조', '억', '만', '%', '원', '명', '개', '건', '달러', '위안'];
+const KOREAN_MULTIPLIERS = { '조': 1e12, '억': 1e8, '만': 1e4 };
+const REAL_UNITS_LIST = ['%', '원', '명', '개', '건', '달러', '위안'];
 
 let chartInstance = null;
 let debounceTimer = null;
@@ -1012,38 +1014,120 @@ function extractLabelValue(segment) {
   segment = segment.trim();
   if (!segment) return null;
 
-  // Strategy: find number followed by a known unit → that's the value
-  // This correctly handles "2022년 300조" → value=300, unit=조, label=2022년
-  const unitRegex = new RegExp('([\\d,]+(?:\\.\\d+)?)\\s*(' + KNOWN_UNITS.join('|') + ')', 'g');
-  let bestMatch = null;
-  let m;
-  while ((m = unitRegex.exec(segment)) !== null) {
-    bestMatch = { numStr: m[1], unit: m[2], index: m.index, end: m.index + m[0].length };
-  }
+  const MULT_KEYS = Object.keys(KOREAN_MULTIPLIERS);
+  const ALL_KNOWN = [...MULT_KEYS, ...REAL_UNITS_LIST];
 
-  // Fallback: no unit found → use the last number
-  if (!bestMatch) {
+  // Step 1: Find the first number followed by a known multiplier or unit.
+  // This determines where the numeric value starts and where the label ends.
+  // e.g. "2022년 300조" → skips "2022년" (년 not a unit), matches "300조"
+  // e.g. "지난해 동월 39억6000만달러" → matches "39억"
+  const allKnownEscaped = ALL_KNOWN.map(u => u.replace(/[.*+?^${}()|[\]\\%]/g, '\\$&')).join('|');
+  const firstValueRegex = new RegExp('([\\d,]+(?:\\.\\d+)?)\\s*(' + allKnownEscaped + ')');
+  const firstMatch = segment.match(firstValueRegex);
+
+  if (!firstMatch) {
+    // No known unit → fall back to the last plain number
     const allNums = [...segment.matchAll(/([\d,]+(?:\.\d+)?)/g)];
     if (allNums.length === 0) return null;
     const last = allNums[allNums.length - 1];
-    bestMatch = { numStr: last[1], unit: '', index: last.index, end: last.index + last[0].length };
+    const value = parseFloat(last[1].replace(/,/g, ''));
+    if (isNaN(value)) return null;
+    let label = segment.substring(0, last.index).trim();
+    label = label.replace(/[:：\-\u2013\u2014\s]+$/, '').trim();
+    if (!label) {
+      const after = segment.substring(last.index + last[0].length).trim();
+      label = after.replace(/[:：\-\u2013\u2014\s]+/, '').trim();
+    }
+    if (!label) label = '항목';
+    return { label, value, unit: '' };
   }
 
-  const value = parseFloat(bestMatch.numStr.replace(/,/g, ''));
-  if (isNaN(value)) return null;
+  // Step 2: Label = everything before the first number+unit match
+  let label = segment.substring(0, firstMatch.index).trim();
+  label = label.replace(/[:：\-\u2013\u2014\s]+$/, '').trim();
 
-  // Label = everything before the matched number
-  let label = segment.substring(0, bestMatch.index).trim();
-  label = label.replace(/[:：\-–—\s]+$/, '').trim();
+  // Step 3: Parse numeric value starting from the match position
+  const valuePart = segment.substring(firstMatch.index);
 
-  // If label is still empty, try text after the value+unit
-  if (!label) {
-    const after = segment.substring(bestMatch.end).trim();
-    label = after.replace(/[:：\-–—\s]+/, '').trim();
+  if (MULT_KEYS.includes(firstMatch[2])) {
+    // Korean multiplier (조/억/만) found → parse compound number
+    // Handles: "39억6000만", "39억 6000만", "3만5000", "300조"
+    const pairs = [];
+    let rest = valuePart;
+
+    while (rest.length > 0) {
+      const pm = rest.match(/^\s*([\d,]+(?:\.\d+)?)\s*(조|억|만)/);
+      if (!pm) break;
+      pairs.push({ num: parseFloat(pm[1].replace(/,/g, '')), mult: pm[2] });
+      rest = rest.substring(pm[0].length);
+    }
+
+    // Check for trailing plain number (e.g. "3만5000" → trailing 5000)
+    let trailingNum = 0;
+    const trailingMatch = rest.match(/^\s*([\d,]+(?:\.\d+)?)/);
+    if (trailingMatch) {
+      trailingNum = parseFloat(trailingMatch[1].replace(/,/g, ''));
+      rest = rest.substring(trailingMatch[0].length);
+    }
+
+    // Check for real unit suffix (달러, 원, % etc.)
+    let realUnit = '';
+    const remaining = rest.trim();
+    for (const u of REAL_UNITS_LIST) {
+      if (remaining.startsWith(u)) {
+        realUnit = u;
+        break;
+      }
+    }
+
+    let value, unit;
+    if (pairs.length === 1 && !realUnit && trailingNum === 0) {
+      // Simple case: "300조" → keep as-is (backward compatible)
+      value = pairs[0].num;
+      unit = pairs[0].mult;
+    } else {
+      // Compound number (e.g. "39억6000만") or multiplier+real unit (e.g. "500만원")
+      let absoluteValue = trailingNum;
+      let highestMultValue = 0;
+      let highestMult = '';
+
+      for (const p of pairs) {
+        absoluteValue += p.num * KOREAN_MULTIPLIERS[p.mult];
+        if (KOREAN_MULTIPLIERS[p.mult] > highestMultValue) {
+          highestMultValue = KOREAN_MULTIPLIERS[p.mult];
+          highestMult = p.mult;
+        }
+      }
+
+      value = absoluteValue / highestMultValue;
+      value = parseFloat(value.toFixed(4));
+      unit = highestMult + realUnit;
+    }
+
+    if (isNaN(value)) return null;
+
+    if (!label) {
+      const afterValue = remaining.substring(realUnit.length).trim();
+      label = afterValue.replace(/[:：\-\u2013\u2014\s]+/g, '').trim();
+    }
+    if (!label) label = '항목';
+
+    return { label, value, unit };
+  } else {
+    // Real unit (%, 원, etc.) → simple number + unit
+    const value = parseFloat(firstMatch[1].replace(/,/g, ''));
+    if (isNaN(value)) return null;
+    const unit = firstMatch[2];
+
+    if (!label) {
+      const afterIdx = firstMatch.index + firstMatch[0].length;
+      const after = segment.substring(afterIdx).trim();
+      label = after.replace(/[:：\-\u2013\u2014\s]+/g, '').trim();
+    }
+    if (!label) label = '항목';
+
+    return { label, value, unit };
   }
-  if (!label) label = '항목';
-
-  return { label, value, unit: bestMatch.unit };
 }
 
 // --- AUTO CHART TYPE SELECTION ---
