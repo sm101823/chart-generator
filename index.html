@@ -1,0 +1,1578 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>한국어 데이터 차트 생성기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-deep: #0a0e1a;
+    --bg-primary: #0f172a;
+    --bg-card: #1e293b;
+    --bg-input: #0f172a;
+    --border: #334155;
+    --border-focus: #6366f1;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent: #6366f1;
+    --accent-hover: #818cf8;
+    --accent-glow: rgba(99, 102, 241, 0.25);
+    --success: #10b981;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-xs: 6px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.3);
+    --shadow-lg: 0 8px 40px rgba(0,0,0,0.4);
+    --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  body {
+    font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    line-height: 1.6;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Noise overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Ambient gradient orb */
+  .ambient-orb {
+    position: fixed;
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.07;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .ambient-orb.orb-1 {
+    top: -200px;
+    right: -100px;
+    background: #6366f1;
+  }
+  .ambient-orb.orb-2 {
+    bottom: -200px;
+    left: -100px;
+    background: #06b6d4;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  .header-title {
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, #e2e8f0 0%, #6366f1 50%, #06b6d4 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 8px;
+  }
+  .header-sub {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
+  .header-line {
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(90deg, #6366f1, #06b6d4);
+    border-radius: 2px;
+    margin: 16px auto 0;
+  }
+
+  /* Input Section */
+  .input-section {
+    margin-bottom: 24px;
+  }
+  .textarea-wrap {
+    position: relative;
+  }
+  textarea {
+    width: 100%;
+    min-height: 130px;
+    padding: 16px 18px;
+    background: var(--bg-input);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 0.95rem;
+    line-height: 1.7;
+    resize: vertical;
+    transition: border-color var(--transition), box-shadow var(--transition);
+    outline: none;
+  }
+  textarea::placeholder {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+  textarea:focus {
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  /* Example Buttons */
+  .examples-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .example-btn {
+    padding: 8px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    color: var(--text-secondary);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+  }
+  .example-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent-hover);
+    background: rgba(99, 102, 241, 0.08);
+    transform: translateY(-1px);
+  }
+
+  /* Controls Row */
+  .controls-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .chart-select {
+    flex: 1;
+    min-width: 180px;
+    padding: 10px 14px;
+    background: var(--bg-card);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    outline: none;
+    transition: border-color var(--transition);
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 34px;
+  }
+  .chart-select:focus {
+    border-color: var(--border-focus);
+  }
+  .chart-select option {
+    background: var(--bg-card);
+    color: var(--text-primary);
+  }
+
+  .action-btn {
+    padding: 10px 18px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 0.84rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .btn-download {
+    background: var(--bg-card);
+    color: var(--text-primary);
+  }
+  .btn-download:hover {
+    border-color: var(--accent);
+    background: rgba(99, 102, 241, 0.1);
+  }
+  .btn-copy {
+    background: var(--bg-card);
+    color: var(--text-primary);
+  }
+  .btn-copy:hover {
+    border-color: #06b6d4;
+    background: rgba(6, 182, 212, 0.1);
+  }
+
+  /* Chart Card */
+  .chart-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 24px 24px;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .chart-card.png-capture::before { display: none !important; }
+  .chart-card.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .chart-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #6366f1, #06b6d4, #10b981);
+    opacity: 0.8;
+  }
+  .chart-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    letter-spacing: -0.02em;
+  }
+  .chart-unit-label {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    font-weight: 400;
+  }
+  .chart-canvas-wrap {
+    position: relative;
+    width: 100%;
+    min-height: 320px;
+  }
+  .chart-canvas-wrap canvas {
+    width: 100% !important;
+  }
+
+  /* Stats Row */
+  .stats-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(51, 65, 85, 0.5);
+  }
+  .stat-pill {
+    padding: 6px 14px;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 100px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid rgba(51, 65, 85, 0.4);
+  }
+  .stat-pill .stat-label {
+    color: var(--text-muted);
+    font-weight: 400;
+  }
+  .stat-pill .stat-value {
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.76rem;
+  }
+
+  /* Growth Indicators */
+  .growth-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .growth-tag {
+    padding: 5px 12px;
+    border-radius: 100px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .growth-tag.positive {
+    background: rgba(16, 185, 129, 0.12);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+  }
+  .growth-tag.negative {
+    background: rgba(239, 68, 68, 0.12);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+  .growth-tag.neutral {
+    background: rgba(148, 163, 184, 0.12);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+  }
+
+  /* Placeholder State */
+  .placeholder-state {
+    text-align: center;
+    padding: 60px 20px;
+    background: var(--bg-card);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 20px;
+  }
+  .placeholder-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    opacity: 0.5;
+  }
+  .placeholder-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+  .placeholder-desc {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    max-width: 400px;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+
+  /* Error State */
+  .error-card {
+    background: rgba(239, 68, 68, 0.06);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .error-card h3 {
+    font-size: 0.95rem;
+    color: #f87171;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .error-card .error-examples {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .error-card .error-examples li {
+    padding: 10px 14px;
+    background: rgba(15, 23, 42, 0.4);
+    border-radius: var(--radius-xs);
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    font-family: 'Noto Sans KR', sans-serif;
+    border: 1px solid rgba(51, 65, 85, 0.3);
+    line-height: 1.6;
+  }
+
+  /* History Section */
+  .history-section {
+    margin-top: 32px;
+  }
+  .history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .history-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .history-clear-btn {
+    padding: 5px 12px;
+    background: transparent;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 100px;
+    color: #f87171;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+  .history-clear-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.5);
+  }
+  .history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition);
+    gap: 12px;
+  }
+  .history-item:hover {
+    border-color: var(--accent);
+    background: rgba(99, 102, 241, 0.05);
+  }
+  .history-text {
+    font-size: 0.83rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+  }
+  .history-time {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    padding: 12px 24px;
+    background: var(--bg-card);
+    border: 1px solid var(--success);
+    border-radius: 100px;
+    color: #34d399;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    z-index: 10000;
+    opacity: 0;
+    transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .container { padding: 24px 16px 60px; }
+    .header-title { font-size: 1.5rem; }
+    .header-sub { font-size: 0.82rem; }
+    textarea { min-height: 110px; font-size: 0.88rem; padding: 14px; }
+    .examples-row { gap: 6px; }
+    .example-btn { font-size: 0.76rem; padding: 7px 12px; }
+    .controls-row { flex-direction: column; }
+    .chart-select { min-width: 100%; }
+    .action-btn { flex: 1; justify-content: center; }
+    .chart-card { padding: 20px 16px 18px; }
+    .chart-title { font-size: 0.95rem; }
+    .chart-canvas-wrap { min-height: 260px; }
+    .stats-row { gap: 8px; }
+    .stat-pill { font-size: 0.72rem; padding: 5px 10px; }
+    .growth-tag { font-size: 0.7rem; }
+    .history-item { padding: 8px 12px; }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+
+  /* Color Settings Panel */
+  .color-panel-wrap { margin-bottom: 16px; }
+  .color-panel-toggle {
+    width: 100%; padding: 10px 18px; background: var(--bg-card);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text-secondary); font-family: inherit; font-size: 0.9rem;
+    font-weight: 500; cursor: pointer; transition: var(--transition);
+  }
+  .color-panel-toggle:hover { color: var(--text-primary); border-color: var(--accent); }
+  .color-panel {
+    max-height: 0; overflow: hidden; transition: max-height 0.35s ease;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 0 0 var(--radius) var(--radius); border-top: none; margin-top: -1px;
+  }
+  .color-panel.open { max-height: 1200px; padding: 16px; }
+  .cp-section { margin-bottom: 14px; }
+  .cp-section:last-child { margin-bottom: 0; }
+  .cp-section-title {
+    font-size: 0.75rem; font-weight: 600; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;
+  }
+  .preset-row, .palette-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .preset-btn, .palette-btn {
+    padding: 7px 13px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+    background: var(--bg-primary); color: var(--text-secondary); font-family: inherit;
+    font-size: 0.82rem; cursor: pointer; transition: var(--transition);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .preset-btn:hover, .palette-btn:hover { border-color: var(--accent); color: var(--text-primary); }
+  .palette-btn.active { border-color: var(--accent); background: rgba(99,102,241,0.15); color: var(--accent); }
+  .palette-preview { display: inline-block; width: 48px; height: 12px; border-radius: 3px; }
+  .chart-color-pickers { display: flex; gap: 8px; flex-wrap: wrap; }
+  .cp-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .cp-item input[type="color"] {
+    width: 32px; height: 32px; border: 1px solid var(--border);
+    border-radius: var(--radius-xs); background: none; cursor: pointer; padding: 1px;
+  }
+  .cp-item span { font-size: 0.7rem; color: var(--text-muted); }
+  .cp-picker-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .cp-group { display: flex; align-items: center; gap: 8px; }
+  .cp-group span { font-size: 0.82rem; color: var(--text-secondary); }
+  .cp-group input[type="color"] {
+    width: 28px; height: 28px; border: 1px solid var(--border);
+    border-radius: var(--radius-xs); background: none; cursor: pointer; padding: 1px;
+  }
+  .radio-group { display: flex; flex-direction: column; gap: 8px; }
+  .radio-item { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer; }
+  .radio-item input[type="radio"] { accent-color: var(--accent); }
+  .radio-item input[type="color"] {
+    width: 24px; height: 24px; border: 1px solid var(--border);
+    border-radius: var(--radius-xs); background: none; cursor: pointer; padding: 1px; margin-left: 4px;
+  }
+  /* Hidden helper */
+
+  /* Article Analysis Panel */
+  .article-panel-wrap { margin-bottom: 16px; }
+  .article-panel-toggle {
+    width: 100%; padding: 10px 18px; background: var(--bg-card);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text-secondary); font-family: inherit; font-size: 0.9rem;
+    font-weight: 500; cursor: pointer; transition: var(--transition);
+  }
+  .article-panel-toggle:hover { color: var(--text-primary); border-color: #f59e0b; }
+  .article-panel {
+    max-height: 0; overflow: hidden; transition: max-height 0.35s ease;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 0 0 var(--radius) var(--radius); border-top: none; margin-top: -1px;
+  }
+  .article-panel.open { max-height: 800px; padding: 16px; }
+  .article-textarea {
+    width: 100%; min-height: 160px; max-height: 300px; padding: 14px 16px;
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text-primary);
+    font-family: inherit; font-size: 0.88rem; line-height: 1.6; resize: vertical;
+    transition: border-color var(--transition);
+  }
+  .article-textarea:focus { outline: none; border-color: #f59e0b; }
+  .article-textarea::placeholder { color: var(--text-muted); }
+  .article-api-row {
+    display: flex; gap: 10px; margin-top: 10px; align-items: center; flex-wrap: wrap;
+  }
+  .article-api-input {
+    flex: 1; min-width: 200px; padding: 9px 14px; background: var(--bg-input);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;
+    transition: border-color var(--transition);
+  }
+  .article-api-input:focus { outline: none; border-color: #f59e0b; }
+  .article-api-input::placeholder { color: var(--text-muted); font-family: 'Noto Sans KR', sans-serif; }
+  .article-analyze-btn {
+    padding: 9px 22px; background: linear-gradient(135deg, #f59e0b, #d97706);
+    border: none; border-radius: var(--radius-sm); color: #fff;
+    font-family: inherit; font-size: 0.88rem; font-weight: 600;
+    cursor: pointer; transition: var(--transition); white-space: nowrap;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .article-analyze-btn:hover { background: linear-gradient(135deg, #d97706, #b45309); transform: translateY(-1px); }
+  .article-analyze-btn:active { transform: translateY(0); }
+  .article-analyze-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+  .article-spinner {
+    width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff; border-radius: 50%;
+    animation: article-spin 0.6s linear infinite; display: none;
+  }
+  .article-analyze-btn.loading .article-spinner { display: inline-block; }
+  .article-analyze-btn.loading .article-btn-text { display: none; }
+  @keyframes article-spin { to { transform: rotate(360deg); } }
+  .article-hint {
+    margin-top: 8px; font-size: 0.75rem; color: var(--text-muted); line-height: 1.5;
+  }
+  .article-error {
+    margin-top: 8px; padding: 8px 12px; background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.3); border-radius: var(--radius-xs);
+    color: #fca5a5; font-size: 0.82rem; display: none;
+  }
+  .article-error.visible { display: block; }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="ambient-orb orb-1"></div>
+<div class="ambient-orb orb-2"></div>
+
+<div class="container">
+  <!-- Header -->
+  <header class="header">
+    <h1 class="header-title">📊 한국어 데이터 차트 생성기</h1>
+    <p class="header-sub">한국어 문장을 입력하면 자동으로 차트를 만들어드립니다</p>
+    <div class="header-line"></div>
+  </header>
+
+  <!-- Article Analysis -->
+  <div class="article-panel-wrap">
+    <button class="article-panel-toggle" id="articlePanelToggle" onclick="toggleArticlePanel()">📰 기사에서 데이터 추출</button>
+    <div class="article-panel" id="articlePanel">
+      <textarea class="article-textarea" id="articleInput" placeholder="분석할 기사 원문을 여기에 붙여넣으세요..."></textarea>
+      <div class="article-api-row">
+        <input type="password" class="article-api-input" id="geminiApiKey" placeholder="Gemini API 키 입력">
+        <button class="article-analyze-btn" id="articleAnalyzeBtn" onclick="analyzeArticle()">
+          <span class="article-btn-text">✨ 분석하기</span>
+          <span class="article-spinner"></span>
+        </button>
+      </div>
+      <div class="article-hint">💡 <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#f59e0b;">Google AI Studio</a>에서 무료 API 키를 발급받을 수 있습니다. 키는 브라우저에 저장되며 외부로 전송되지 않습니다.</div>
+      <div class="article-error" id="articleError"></div>
+    </div>
+  </div>
+
+  <!-- Input -->
+  <section class="input-section">
+    <div class="textarea-wrap">
+      <textarea id="dataInput" placeholder="예: 삼성전자 매출: 2022년 300조, 2023년 260조, 2024년 290조&#10;또는 줄바꿈으로 입력:&#10;서울 980만&#10;부산 340만&#10;인천 295만"></textarea>
+    </div>
+    <div class="examples-row">
+      <button class="example-btn" data-text="삼성전자 매출: 2022년 300조, 2023년 260조, 2024년 290조">📈 매출 추이</button>
+      <button class="example-btn" data-text="시장 점유율 - 삼성 35%, 애플 28%, 샤오미 12%, 기타 25%">🥧 시장 점유율</button>
+      <button class="example-btn" data-text="분기별 실적: 1분기 100억, 2분기 120억, 3분기 95억, 4분기 150억">📊 분기별 실적</button>
+    </div>
+  </section>
+
+  <!-- Controls -->
+  <div class="controls-row">
+    <select id="chartType" class="chart-select">
+      <option value="bar">막대 그래프</option>
+      <option value="horizontalBar">가로 막대 그래프</option>
+      <option value="line">선 그래프</option>
+      <option value="pie">파이 차트</option>
+      <option value="doughnut">도넛 차트</option>
+      <option value="area">영역 차트</option>
+    </select>
+    <button class="action-btn btn-download" id="btnDownload" onclick="downloadPNG()">📥 PNG 다운로드</button>
+    <button class="action-btn btn-copy" id="btnCopy" onclick="copyToClipboard()">📋 클립보드 복사</button>
+  </div>
+
+  <!-- Color Settings Panel -->
+  <div class="color-panel-wrap">
+    <button class="color-panel-toggle" id="colorPanelToggle" onclick="toggleColorPanel()">🎨 색상 설정</button>
+    <div class="color-panel" id="colorPanel">
+      <div class="cp-section">
+        <div class="cp-section-title">프리셋</div>
+        <div class="preset-row">
+          <button class="preset-btn" onclick="applyPreset('dark-ppt')">🌙 어두운 PPT용</button>
+          <button class="preset-btn" onclick="applyPreset('light-ppt')">☀️ 밝은 PPT용</button>
+          <button class="preset-btn" onclick="applyPreset('vivid-ppt')">🎯 선명한 프레젠테이션용</button>
+        </div>
+      </div>
+      <div class="cp-section">
+        <div class="cp-section-title">그래프 팔레트</div>
+        <div class="palette-row" id="paletteRow"></div>
+      </div>
+      <div class="cp-section">
+        <div class="cp-section-title">개별 색상 조정</div>
+        <div class="chart-color-pickers" id="chartColorPickers"></div>
+      </div>
+      <div class="cp-section">
+        <div class="cp-section-title">텍스트 색상</div>
+        <div class="cp-picker-row">
+          <label class="cp-group"><span>제목</span><input type="color" id="cpTitle" onchange="onTextColorChange('titleColor',this)"></label>
+          <label class="cp-group"><span>데이터 라벨</span><input type="color" id="cpLabel" onchange="onTextColorChange('labelColor',this)"></label>
+          <label class="cp-group"><span>축 텍스트</span><input type="color" id="cpAxisText" onchange="onTextColorChange('axisTextColor',this)"></label>
+          <label class="cp-group"><span>통계 라벨</span><input type="color" id="cpStatLabel" onchange="onTextColorChange('statLabelColor',this)"></label>
+          <label class="cp-group"><span>통계 수치</span><input type="color" id="cpStatValue" onchange="onTextColorChange('statValueColor',this)"></label>
+          <label class="cp-group"><span>성장률</span><input type="color" id="cpGrowth" onchange="onTextColorChange('growthColor',this)"></label>
+        </div>
+      </div>
+      <div class="cp-section">
+        <div class="cp-section-title">축 라인 색상</div>
+        <div class="cp-picker-row">
+          <label class="cp-group"><span>축 라인</span><input type="color" id="cpAxisLine" onchange="onTextColorChange('axisLineColor',this)"></label>
+        </div>
+      </div>
+      <div class="cp-section">
+        <div class="cp-section-title">PNG 다운로드 배경</div>
+        <div class="radio-group">
+          <label class="radio-item"><input type="radio" name="pngBg" value="transparent" onchange="onPngBgChange(this.value)"><span>투명 (기본)</span></label>
+          <label class="radio-item"><input type="radio" name="pngBg" value="white" onchange="onPngBgChange(this.value)"><span>흰색 배경</span></label>
+          <label class="radio-item"><input type="radio" name="pngBg" value="dark" onchange="onPngBgChange(this.value)"><span>어두운 배경</span></label>
+          <label class="radio-item"><input type="radio" name="pngBg" value="custom" onchange="onPngBgChange(this.value)"><span>커스텀</span><input type="color" id="cpPngCustom" value="#1e293b" disabled onchange="onPngCustomColorChange(this)"></label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Placeholder -->
+  <div id="placeholderState" class="placeholder-state">
+    <div class="placeholder-icon">📊</div>
+    <div class="placeholder-title">데이터를 입력해주세요</div>
+    <div class="placeholder-desc">
+      위 텍스트 입력란에 한국어로 데이터를 입력하면<br>
+      자동으로 차트가 생성됩니다.<br>
+      예시 버튼을 클릭해 바로 체험해보세요!
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div id="errorState" class="error-card hidden">
+    <h3>⚠️ 데이터를 인식하지 못했습니다</h3>
+    <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px;">아래 형식으로 입력해주세요:</p>
+    <ul class="error-examples">
+      <li>삼성전자 매출: 2022년 300조, 2023년 260조, 2024년 290조</li>
+      <li>시장 점유율 - 삼성 35%, 애플 28%, 샤오미 12%, 기타 25%</li>
+      <li>서울 980만 (줄바꿈) 부산 340만 (줄바꿈) 인천 295만</li>
+    </ul>
+  </div>
+
+  <!-- Chart Card -->
+  <div id="chartCard" class="chart-card hidden">
+    <div class="chart-title" id="chartTitle"></div>
+    <div class="chart-unit-label" id="chartUnitLabel"></div>
+    <div class="chart-canvas-wrap">
+      <canvas id="chartCanvas"></canvas>
+    </div>
+    <div class="stats-row" id="statsRow"></div>
+    <div class="growth-row" id="growthRow"></div>
+  </div>
+
+  <!-- History -->
+  <section class="history-section" id="historySection">
+    <div class="history-header">
+      <div class="history-title">📝 이전 입력 기록</div>
+      <button class="history-clear-btn" onclick="clearHistory()">기록 삭제</button>
+    </div>
+    <div class="history-list" id="historyList"></div>
+  </section>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+Chart.register(ChartDataLabels);
+
+const COLORS = [
+  '#6366f1', '#06b6d4', '#10b981', '#f59e0b',
+  '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6',
+];
+
+const KNOWN_UNITS = ['조', '억', '만', '%', '원', '명', '개', '건', '달러', '위안'];
+
+let chartInstance = null;
+let debounceTimer = null;
+let userOverrodeChartType = false;
+let lastParsedData = null;
+
+// --- COLOR SETTINGS ---
+const PALETTES = {
+  vibrant: ['#6366f1','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6'],
+  pastel: ['#a5b4fc','#67e8f9','#6ee7b7','#fcd34d','#fca5a5','#c4b5fd','#f9a8d4','#5eead4'],
+  bold: ['#4338ca','#0891b2','#059669','#d97706','#dc2626','#7c3aed','#db2777','#0d9488'],
+  earth: ['#b45309','#047857','#1d4ed8','#a16207','#be123c','#6d28d9','#0f766e','#a21caf'],
+  neon: ['#818cf8','#22d3ee','#34d399','#fbbf24','#f87171','#a78bfa','#fb7185','#2dd4bf'],
+};
+const PALETTE_NAMES = { vibrant:'비비드', pastel:'파스텔', bold:'볼드', earth:'어스', neon:'네온' };
+const PALETTE_GRADS = {
+  vibrant:'#6366f1,#06b6d4,#10b981,#f59e0b,#ef4444',
+  pastel:'#a5b4fc,#67e8f9,#6ee7b7,#fcd34d,#fca5a5',
+  bold:'#4338ca,#0891b2,#059669,#d97706,#dc2626',
+  earth:'#b45309,#047857,#1d4ed8,#a16207,#be123c',
+  neon:'#818cf8,#22d3ee,#34d399,#fbbf24,#f87171',
+};
+const PRESETS = {
+  'dark-ppt': { chartColors:[...PALETTES.pastel], activePalette:'pastel', titleColor:'#ffffff', labelColor:'#ffffff', axisTextColor:'#e2e8f0', axisLineColor:'#e2e8f0', statLabelColor:'#94a3b8', statValueColor:'#f1f5f9', growthColor:'', pngBg:'transparent', pngCustomColor:'#1e293b' },
+  'light-ppt': { chartColors:[...PALETTES.bold], activePalette:'bold', titleColor:'#1e293b', labelColor:'#1e293b', axisTextColor:'#475569', axisLineColor:'#475569', statLabelColor:'#475569', statValueColor:'#1e293b', growthColor:'#1e293b', pngBg:'transparent', pngCustomColor:'#ffffff' },
+  'vivid-ppt': { chartColors:[...PALETTES.vibrant], activePalette:'vibrant', titleColor:'#1e293b', labelColor:'#1e293b', axisTextColor:'#334155', axisLineColor:'#1e293b', statLabelColor:'#475569', statValueColor:'#1e293b', growthColor:'#334155', pngBg:'white', pngCustomColor:'#ffffff' },
+};
+const DEFAULT_CS = { chartColors:[...PALETTES.vibrant], activePalette:'vibrant', titleColor:'#f1f5f9', labelColor:'#e2e8f0', axisTextColor:'#94a3b8', axisLineColor:'#334155', statLabelColor:'#64748b', statValueColor:'#f1f5f9', growthColor:'', pngBg:'transparent', pngCustomColor:'#1e293b' };
+let colorSettings = (function(){ try { const s=JSON.parse(localStorage.getItem('chart-cs')); if(s&&s.chartColors) return {...DEFAULT_CS,...s}; } catch(e){} return {...DEFAULT_CS}; })();
+function saveCS(){ localStorage.setItem('chart-cs', JSON.stringify(colorSettings)); }
+
+function applyPreset(name){
+  const p=PRESETS[name]; if(!p) return;
+  Object.assign(colorSettings, JSON.parse(JSON.stringify(p)));
+  saveCS(); renderColorPanel(); refreshChart();
+}
+
+function toggleColorPanel(){
+  const p=document.getElementById('colorPanel');
+  p.classList.toggle('open');
+  document.getElementById('colorPanelToggle').textContent = p.classList.contains('open') ? '🎨 색상 설정 닫기' : '🎨 색상 설정';
+}
+
+function selectPalette(name){
+  if(!PALETTES[name]) return;
+  colorSettings.activePalette = name;
+  colorSettings.chartColors = [...PALETTES[name]];
+  saveCS(); renderColorPanel(); refreshChart();
+}
+
+function getPngBackgroundColor(){
+  switch(colorSettings.pngBg){
+    case 'transparent': return null;
+    case 'white': return '#ffffff';
+    case 'dark': return '#1e293b';
+    case 'custom': return colorSettings.pngCustomColor;
+    default: return null;
+  }
+}
+
+function refreshChart(){
+  if(!lastParsedData) return;
+  renderChart(lastParsedData, chartTypeSelect.value);
+  renderStats(lastParsedData);
+  const isPie = ['pie','doughnut'].includes(chartTypeSelect.value);
+  renderGrowth(lastParsedData, isPie);
+}
+
+function renderColorPanel(){
+  const pr = document.getElementById('paletteRow');
+  if(pr){
+    pr.innerHTML = Object.keys(PALETTES).map(k =>
+      `<button class="palette-btn${colorSettings.activePalette===k?' active':''}" onclick="selectPalette('${k}')"><span class="palette-preview" style="background:linear-gradient(90deg,${PALETTE_GRADS[k]})"></span>${PALETTE_NAMES[k]}</button>`
+    ).join('');
+  }
+  const cp = id => document.getElementById(id);
+  if(cp('cpTitle')) cp('cpTitle').value = colorSettings.titleColor;
+  if(cp('cpLabel')) cp('cpLabel').value = colorSettings.labelColor;
+  if(cp('cpAxisText')) cp('cpAxisText').value = colorSettings.axisTextColor;
+  if(cp('cpAxisLine')) cp('cpAxisLine').value = colorSettings.axisLineColor;
+  if(cp('cpStatLabel')) cp('cpStatLabel').value = colorSettings.statLabelColor || '#64748b';
+  if(cp('cpStatValue')) cp('cpStatValue').value = colorSettings.statValueColor || '#f1f5f9';
+  if(cp('cpGrowth')) cp('cpGrowth').value = colorSettings.growthColor || '#34d399';
+  document.querySelectorAll('input[name="pngBg"]').forEach(r => { r.checked = (r.value === colorSettings.pngBg); });
+  const cpc = cp('cpPngCustom');
+  if(cpc){ cpc.value = colorSettings.pngCustomColor; cpc.disabled = colorSettings.pngBg !== 'custom'; }
+  renderChartColorPickers();
+}
+
+function renderChartColorPickers(){
+  const c = document.getElementById('chartColorPickers'); if(!c) return;
+  const n = lastParsedData ? lastParsedData.values.length : colorSettings.chartColors.length;
+  c.innerHTML = Array.from({length:Math.min(n,8)},(_,i) => {
+    const col = colorSettings.chartColors[i] || PALETTES.vibrant[i%8];
+    return `<label class="cp-item"><input type="color" value="${col}" data-idx="${i}" onchange="updateChartColor(this)"><span>${i+1}</span></label>`;
+  }).join('');
+}
+
+function updateChartColor(el){ colorSettings.chartColors[parseInt(el.dataset.idx)] = el.value; saveCS(); refreshChart(); }
+function onTextColorChange(key, el){ colorSettings[key] = el.value; saveCS(); refreshChart(); }
+function onPngBgChange(v){ colorSettings.pngBg = v; const c=document.getElementById('cpPngCustom'); if(c) c.disabled = v!=='custom'; saveCS(); }
+function onPngCustomColorChange(el){ colorSettings.pngCustomColor = el.value; saveCS(); }
+
+// DOM refs
+const dataInput = document.getElementById('dataInput');
+const chartTypeSelect = document.getElementById('chartType');
+const chartCard = document.getElementById('chartCard');
+const chartTitle = document.getElementById('chartTitle');
+const chartUnitLabel = document.getElementById('chartUnitLabel');
+const chartCanvas = document.getElementById('chartCanvas');
+const statsRow = document.getElementById('statsRow');
+const growthRow = document.getElementById('growthRow');
+const placeholderState = document.getElementById('placeholderState');
+const errorState = document.getElementById('errorState');
+const historySection = document.getElementById('historySection');
+const historyList = document.getElementById('historyList');
+const btnCopy = document.getElementById('btnCopy');
+
+// Hide clipboard button if not supported
+if (!(navigator.clipboard && typeof ClipboardItem !== 'undefined')) {
+  btnCopy.style.display = 'none';
+}
+
+// --- KOREAN TEXT PARSER ---
+function parseKoreanData(text) {
+  if (!text || !text.trim()) return null;
+
+  text = text.trim();
+  let title = '';
+  let dataText = text;
+
+  // Extract title from colon or dash
+  const colonIdx = text.indexOf(':');
+  const dashMatch = text.match(/^(.+?)\s*[-–—]\s+/);
+
+  if (colonIdx > 0 && colonIdx < 30) {
+    title = text.substring(0, colonIdx).trim();
+    dataText = text.substring(colonIdx + 1).trim();
+  } else if (dashMatch && dashMatch.index === 0) {
+    title = dashMatch[1].trim();
+    dataText = text.substring(dashMatch[0].length).trim();
+  }
+
+  // Split by commas or newlines
+  let segments;
+  if (dataText.includes(',') || dataText.includes('，')) {
+    segments = dataText.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+  } else if (dataText.includes('\n')) {
+    const lines = dataText.split('\n').map(s => s.trim()).filter(Boolean);
+    // Check if first line has no number — treat as title
+    if (lines.length > 1 && !lines[0].match(/[\d.]+/)) {
+      if (!title) title = lines[0];
+      lines.shift();
+    }
+    segments = lines;
+  } else {
+    // Try splitting by whitespace groups with numbers
+    const spaceSegments = dataText.match(/[^\d]*[\d,.]+[^\d,]*/g);
+    if (spaceSegments && spaceSegments.length > 1) {
+      segments = spaceSegments.map(s => s.trim()).filter(Boolean);
+    } else {
+      segments = [dataText];
+    }
+  }
+
+  const labels = [];
+  const values = [];
+  let detectedUnit = '';
+
+  for (const seg of segments) {
+    const parsed = extractLabelValue(seg);
+    if (parsed) {
+      labels.push(parsed.label);
+      values.push(parsed.value);
+      if (parsed.unit && !detectedUnit) detectedUnit = parsed.unit;
+    }
+  }
+
+  if (labels.length === 0 || values.length === 0) return null;
+
+  // Auto-generate title if empty
+  if (!title) {
+    title = '데이터 차트';
+  }
+
+  return { title, labels, values, unit: detectedUnit };
+}
+
+function extractLabelValue(segment) {
+  segment = segment.trim();
+  if (!segment) return null;
+
+  // Strategy: find number followed by a known unit → that's the value
+  // This correctly handles "2022년 300조" → value=300, unit=조, label=2022년
+  const unitRegex = new RegExp('([\\d,]+(?:\\.\\d+)?)\\s*(' + KNOWN_UNITS.join('|') + ')', 'g');
+  let bestMatch = null;
+  let m;
+  while ((m = unitRegex.exec(segment)) !== null) {
+    bestMatch = { numStr: m[1], unit: m[2], index: m.index, end: m.index + m[0].length };
+  }
+
+  // Fallback: no unit found → use the last number
+  if (!bestMatch) {
+    const allNums = [...segment.matchAll(/([\d,]+(?:\.\d+)?)/g)];
+    if (allNums.length === 0) return null;
+    const last = allNums[allNums.length - 1];
+    bestMatch = { numStr: last[1], unit: '', index: last.index, end: last.index + last[0].length };
+  }
+
+  const value = parseFloat(bestMatch.numStr.replace(/,/g, ''));
+  if (isNaN(value)) return null;
+
+  // Label = everything before the matched number
+  let label = segment.substring(0, bestMatch.index).trim();
+  label = label.replace(/[:：\-–—\s]+$/, '').trim();
+
+  // If label is still empty, try text after the value+unit
+  if (!label) {
+    const after = segment.substring(bestMatch.end).trim();
+    label = after.replace(/[:：\-–—\s]+/, '').trim();
+  }
+  if (!label) label = '항목';
+
+  return { label, value, unit: bestMatch.unit };
+}
+
+// --- AUTO CHART TYPE SELECTION ---
+function detectChartType(text, data) {
+  const lowerText = text;
+
+  // Percentage keywords → pie
+  if (/점유율|비율|비중|구성|분포/.test(lowerText)) return 'pie';
+  // Trend keywords → line
+  if (/추이|변화|성장|증가|감소|연도|분기|월별/.test(lowerText)) return 'line';
+  // Comparison keywords → bar
+  if (/비교|대비/.test(lowerText)) return 'bar';
+
+  if (data) {
+    // % unit → pie
+    if (data.unit === '%') return 'pie';
+    // Year-like labels → line
+    const yearPattern = /\d{4}년/;
+    const quarterPattern = /\d분기/;
+    const monthPattern = /\d{1,2}월/;
+    if (data.labels.some(l => yearPattern.test(l) || quarterPattern.test(l) || monthPattern.test(l))) {
+      return 'line';
+    }
+  }
+
+  return 'bar';
+}
+
+// --- CHART RENDERING ---
+function renderChart(data, chartType) {
+  if (!data) return;
+
+  lastParsedData = data;
+
+  // Show chart card
+  placeholderState.classList.add('hidden');
+  errorState.classList.add('hidden');
+  chartCard.classList.remove('hidden');
+  requestAnimationFrame(() => chartCard.classList.add('visible'));
+
+  // Set title
+  chartTitle.textContent = data.title;
+  chartUnitLabel.textContent = data.unit ? `단위: ${data.unit}` : '';
+
+  // Destroy old chart
+  if (chartInstance) {
+    chartInstance.destroy();
+    chartInstance = null;
+  }
+
+  const isPie = chartType === 'pie' || chartType === 'doughnut';
+  const isHorizontal = chartType === 'horizontalBar';
+  const isArea = chartType === 'area';
+  const actualType = isHorizontal ? 'bar' : (isArea ? 'line' : chartType);
+
+  const colors = data.values.map((_, i) => colorSettings.chartColors[i % colorSettings.chartColors.length]);
+  const unit = data.unit || '';
+
+  // Build dataset
+  const dataset = {
+    label: data.title,
+    data: data.values,
+    backgroundColor: isPie ? colors : colors.map(c => c + 'cc'),
+    borderColor: isPie ? '#1e293b' : colors,
+    borderWidth: isPie ? 2 : 2,
+    borderRadius: (actualType === 'bar' && !isPie) ? 6 : 0,
+    tension: 0.3,
+    fill: isArea,
+    pointBackgroundColor: colors,
+    pointRadius: (actualType === 'line') ? 5 : 0,
+    pointHoverRadius: (actualType === 'line') ? 7 : 0,
+  };
+
+  if (isArea) {
+    dataset.backgroundColor = createGradient(colors[0]);
+  }
+
+  // Datalabels config
+  let datalabelsConfig;
+  if (isPie) {
+    datalabelsConfig = {
+      color: colorSettings.labelColor,
+      font: { size: 15, weight: '700', family: 'JetBrains Mono' },
+      formatter: function(value, context) {
+        const total = context.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+        const pct = ((value / total) * 100).toFixed(1);
+        return `${formatNum(value)}${unit}\n${pct}%`;
+      },
+      textAlign: 'center',
+      anchor: 'center',
+      align: 'center',
+      offset: 0,
+    };
+  } else {
+    datalabelsConfig = {
+      color: colorSettings.labelColor,
+      font: { size: 11, weight: 'bold', family: 'JetBrains Mono' },
+      anchor: 'end',
+      align: isHorizontal ? 'right' : 'top',
+      offset: 4,
+      formatter: function(value) {
+        return formatNum(value) + unit;
+      },
+    };
+  }
+
+  // Chart options
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    indexAxis: isHorizontal ? 'y' : 'x',
+    animation: {
+      duration: 700,
+      easing: 'easeOutQuart',
+    },
+    layout: {
+      padding: {
+        top: isPie ? 10 : 24,
+        right: isHorizontal ? 40 : 10,
+        bottom: 10,
+        left: 10,
+      }
+    },
+    plugins: {
+      legend: {
+        display: isPie,
+        position: 'bottom',
+        labels: {
+          color: colorSettings.axisTextColor,
+          font: { family: 'Noto Sans KR', size: 13, weight: '500' },
+          padding: 18,
+          usePointStyle: true,
+          pointStyleWidth: 12,
+        }
+      },
+      tooltip: {
+        backgroundColor: '#0f172a',
+        titleColor: '#f1f5f9',
+        bodyColor: '#94a3b8',
+        borderColor: '#334155',
+        borderWidth: 1,
+        padding: 12,
+        cornerRadius: 8,
+        titleFont: { family: 'Noto Sans KR', weight: '600' },
+        bodyFont: { family: 'Noto Sans KR' },
+        callbacks: {
+          label: function(context) {
+            let val = formatNum(context.parsed.y ?? context.parsed.x ?? context.raw);
+            if (isPie) {
+              const total = context.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+              const pct = ((context.raw / total) * 100).toFixed(1);
+              return ` ${context.label}: ${val}${unit} (${pct}%)`;
+            }
+            return ` ${val}${unit}`;
+          }
+        }
+      },
+      datalabels: datalabelsConfig,
+    },
+  };
+
+  if (!isPie) {
+    const categoryAxis = {
+      ticks: {
+        color: colorSettings.axisTextColor,
+        font: { family: 'Noto Sans KR', size: 12 },
+      },
+      grid: { display: false },
+      border: { color: colorSettings.axisLineColor },
+    };
+    const valueAxis = {
+      ticks: {
+        color: colorSettings.axisTextColor,
+        font: { family: 'JetBrains Mono', size: 11 },
+        callback: function(value) {
+          return formatNum(value);
+        }
+      },
+      grid: { display: false },
+      border: { color: colorSettings.axisLineColor },
+      beginAtZero: true,
+    };
+    if (isHorizontal) {
+      options.scales = { x: valueAxis, y: categoryAxis };
+    } else {
+      options.scales = { x: categoryAxis, y: valueAxis };
+    }
+  }
+
+  const ctx = chartCanvas.getContext('2d');
+  chartInstance = new Chart(ctx, {
+    type: actualType,
+    data: {
+      labels: data.labels,
+      datasets: [dataset],
+    },
+    options: options,
+  });
+  chartTitle.style.color = colorSettings.titleColor;
+  chartUnitLabel.style.color = colorSettings.axisTextColor;
+  renderChartColorPickers();
+
+  // Render stats and growth
+  renderStats(data);
+  renderGrowth(data, isPie);
+}
+
+function createGradient(color) {
+  const ctx = chartCanvas.getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+  gradient.addColorStop(0, color + '66');
+  gradient.addColorStop(1, color + '05');
+  return gradient;
+}
+
+function formatNum(n) {
+  if (n >= 10000) return n.toLocaleString('ko-KR');
+  if (Number.isInteger(n)) return n.toLocaleString('ko-KR');
+  return parseFloat(n.toFixed(1)).toLocaleString('ko-KR');
+}
+
+// --- STATS ---
+function renderStats(data) {
+  const vals = data.values;
+  const unit = data.unit || '';
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const sum = vals.reduce((a, b) => a + b, 0);
+
+  const slc = colorSettings.statLabelColor || '#64748b';
+  const svc = colorSettings.statValueColor || '#f1f5f9';
+  statsRow.innerHTML = `
+    <div class="stat-pill"><span class="stat-label" style="color:${slc}">최솟값</span><span class="stat-value" style="color:${svc}">${formatNum(min)}${unit}</span></div>
+    <div class="stat-pill"><span class="stat-label" style="color:${slc}">최댓값</span><span class="stat-value" style="color:${svc}">${formatNum(max)}${unit}</span></div>
+    <div class="stat-pill"><span class="stat-label" style="color:${slc}">평균</span><span class="stat-value" style="color:${svc}">${formatNum(parseFloat(avg.toFixed(1)))}${unit}</span></div>
+    <div class="stat-pill"><span class="stat-label" style="color:${slc}">합계</span><span class="stat-value" style="color:${svc}">${formatNum(sum)}${unit}</span></div>
+    <div class="stat-pill"><span class="stat-label" style="color:${slc}">항목 수</span><span class="stat-value" style="color:${svc}">${vals.length}개</span></div>
+  `;
+}
+
+function renderGrowth(data, isPie) {
+  if (isPie || data.values.length < 2) {
+    growthRow.innerHTML = '';
+    return;
+  }
+
+  const tags = [];
+  for (let i = 1; i < data.values.length; i++) {
+    const prev = data.values[i - 1];
+    const curr = data.values[i];
+    if (prev === 0) continue;
+    const change = ((curr - prev) / prev) * 100;
+    const sign = change > 0 ? '+' : '';
+    const arrow = change > 0 ? '↑' : change < 0 ? '↓' : '→';
+    const cls = change > 0 ? 'positive' : change < 0 ? 'negative' : 'neutral';
+    tags.push(
+      `<span class="growth-tag ${cls}"${colorSettings.growthColor ? ` style="color:${colorSettings.growthColor}"` : ''}>${data.labels[i - 1]}→${data.labels[i]}: ${arrow} ${sign}${change.toFixed(1)}%</span>`
+    );
+  }
+  growthRow.innerHTML = tags.join('');
+}
+
+// --- MAIN TRIGGER ---
+function processInput() {
+  const text = dataInput.value.trim();
+
+  if (!text) {
+    placeholderState.classList.remove('hidden');
+    chartCard.classList.add('hidden');
+    chartCard.classList.remove('visible');
+    errorState.classList.add('hidden');
+    return;
+  }
+
+  const data = parseKoreanData(text);
+
+  if (!data || data.values.length === 0) {
+    placeholderState.classList.add('hidden');
+    chartCard.classList.add('hidden');
+    chartCard.classList.remove('visible');
+    errorState.classList.remove('hidden');
+    return;
+  }
+
+  // Auto-detect chart type if user hasn't manually overridden
+  if (!userOverrodeChartType) {
+    const autoType = detectChartType(text, data);
+    chartTypeSelect.value = autoType;
+  }
+
+  const selectedType = chartTypeSelect.value;
+  lastParsedData = data;
+  renderChart(data, selectedType);
+  saveToHistory(text);
+}
+
+// --- DEBOUNCE INPUT ---
+dataInput.addEventListener('input', () => {
+  userOverrodeChartType = false;
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(processInput, 300);
+});
+
+// Chart type change
+chartTypeSelect.addEventListener('change', () => {
+  userOverrodeChartType = true;
+  const text = dataInput.value.trim();
+  if (!text) return;
+  const data = parseKoreanData(text);
+  if (data && data.values.length > 0) {
+    lastParsedData = data;
+    renderChart(data, chartTypeSelect.value);
+  }
+});
+
+// Example buttons
+document.querySelectorAll('.example-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const text = btn.getAttribute('data-text');
+    dataInput.value = text;
+    userOverrodeChartType = false;
+    processInput();
+  });
+});
+
+// --- EXPORT ---
+async function downloadPNG() {
+  if (!chartCard.classList.contains('visible')) return;
+  const elements = [chartCard, ...chartCard.querySelectorAll('*')];
+  const saved = elements.map(el => el.style.backgroundColor);
+  const savedBorder = chartCard.style.border;
+  const savedRadius = chartCard.style.borderRadius;
+  const savedShadow = chartCard.style.boxShadow;
+  elements.forEach(el => el.style.backgroundColor = 'transparent');
+  chartCard.style.border = 'none';
+  chartCard.style.borderRadius = '0';
+  chartCard.style.boxShadow = 'none';
+  chartCard.classList.add('png-capture');
+  try {
+    const canvas = await html2canvas(chartCard, {
+      backgroundColor: getPngBackgroundColor(),
+      scale: 2,
+      logging: false,
+      useCORS: true,
+    });
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'chart.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  } catch (e) {
+    showToast('\ub2e4\uc6b4\ub85c\ub4dc \uc911 \uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4');
+  } finally {
+    elements.forEach((el, i) => el.style.backgroundColor = saved[i]); chartCard.style.border = savedBorder; chartCard.style.borderRadius = savedRadius; chartCard.style.boxShadow = savedShadow; chartCard.classList.remove('png-capture');
+  }
+}
+
+async function copyToClipboard() {
+  if (!chartCard.classList.contains('visible')) return;
+  if (!(navigator.clipboard && typeof ClipboardItem !== 'undefined')) {
+    showToast('이 브라우저에서는 클립보드 복사를 지원하지 않습니다');
+    return;
+  }
+  try {
+    const canvas = await html2canvas(chartCard, {
+      backgroundColor: '#1e293b',
+      scale: 2,
+      logging: false,
+      useCORS: true,
+    });
+    canvas.toBlob(async blob => {
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ]);
+        showToast('✅ 클립보드에 복사되었습니다!');
+      } catch (err) {
+        showToast('클립보드 복사에 실패했습니다');
+      }
+    }, 'image/png');
+  } catch (e) {
+    showToast('복사 중 오류가 발생했습니다');
+  }
+}
+
+// --- TOAST ---
+function showToast(message) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+// --- HISTORY ---
+function getHistory() {
+  try {
+    return JSON.parse(localStorage.getItem('chart-history') || '[]');
+  } catch { return []; }
+}
+
+function saveToHistory(text) {
+  let history = getHistory();
+  // Don't duplicate identical consecutive entries
+  if (history.length > 0 && history[0].text === text) return;
+  history.unshift({
+    text: text,
+    timestamp: Date.now(),
+  });
+  // Keep last 10
+  history = history.slice(0, 10);
+  localStorage.setItem('chart-history', JSON.stringify(history));
+  renderHistory();
+}
+
+function clearHistory() {
+  localStorage.removeItem('chart-history');
+  renderHistory();
+}
+
+function renderHistory() {
+  const history = getHistory();
+  if (history.length === 0) {
+    historySection.classList.add('hidden');
+    return;
+  }
+  historySection.classList.remove('hidden');
+  historyList.innerHTML = history.map((item, idx) => {
+    const truncated = item.text.length > 50 ? item.text.substring(0, 50) + '…' : item.text;
+    const date = new Date(item.timestamp);
+    const timeStr = `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    return `<div class="history-item" data-idx="${idx}">
+      <span class="history-text">${escapeHtml(truncated)}</span>
+      <span class="history-time">${timeStr}</span>
+    </div>`;
+  }).join('');
+
+  // Attach click handlers
+  historyList.querySelectorAll('.history-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = parseInt(el.getAttribute('data-idx'));
+      const history = getHistory();
+      if (history[idx]) {
+        dataInput.value = history[idx].text;
+        userOverrodeChartType = false;
+        processInput();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// --- ARTICLE ANALYSIS ---
+const GEMINI_KEY_STORAGE = 'gemini-api-key';
+(function loadGeminiKey() {
+  const saved = localStorage.getItem(GEMINI_KEY_STORAGE);
+  if (saved) document.getElementById('geminiApiKey').value = saved;
+})();
+
+function toggleArticlePanel() {
+  const p = document.getElementById('articlePanel');
+  p.classList.toggle('open');
+  document.getElementById('articlePanelToggle').textContent = p.classList.contains('open') ? '📰 기사 분석 닫기' : '📰 기사에서 데이터 추출';
+}
+
+async function analyzeArticle() {
+  const articleText = document.getElementById('articleInput').value.trim();
+  const apiKey = document.getElementById('geminiApiKey').value.trim();
+  const btn = document.getElementById('articleAnalyzeBtn');
+  const errEl = document.getElementById('articleError');
+  errEl.classList.remove('visible'); errEl.textContent = '';
+
+  if (!articleText) { errEl.textContent = '기사 내용을 입력해주세요.'; errEl.classList.add('visible'); return; }
+  if (!apiKey) { errEl.textContent = 'Gemini API 키를 입력해주세요.'; errEl.classList.add('visible'); return; }
+
+  localStorage.setItem(GEMINI_KEY_STORAGE, apiKey);
+  btn.classList.add('loading'); btn.disabled = true;
+
+  const prompt = `아래 기사에서 수치 데이터를 추출하고, 필요하면 계산(배수, 증가율 등)도 해서 차트용 데이터로 변환해줘. 반드시 이 형식으로만 답변: 항목명 숫자단위, 항목명 숫자단위 (예: 오픈AI 기업가치 2024년10월 5000억달러, 2025년2월 7500억달러)\n\n기사 내용:\n${articleText}`;
+
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => null);
+      if (res.status === 400 || res.status === 403) {
+        errEl.textContent = 'API 키를 확인해주세요. 유효하지 않거나 권한이 없습니다.';
+      } else {
+        errEl.textContent = `API 오류 (${res.status}): ${errData?.error?.message || '알 수 없는 오류'}`;
+      }
+      errEl.classList.add('visible'); return;
+    }
+
+    const data = await res.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) { errEl.textContent = 'API 응답에서 텍스트를 추출할 수 없습니다.'; errEl.classList.add('visible'); return; }
+
+    dataInput.value = text.trim();
+    userOverrodeChartType = false;
+    processInput();
+    showToast('✅ 기사 분석 완료! 차트가 생성되었습니다.');
+    document.getElementById('articlePanel').classList.remove('open');
+    document.getElementById('articlePanelToggle').textContent = '📰 기사에서 데이터 추출';
+  } catch (e) {
+    errEl.textContent = '네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.';
+    errEl.classList.add('visible');
+  } finally {
+    btn.classList.remove('loading'); btn.disabled = false;
+  }
+}
+
+// --- INIT ---
+renderColorPanel();
+renderHistory();
+</script>
+</body>
+</html>
